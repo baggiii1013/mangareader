@@ -1,101 +1,214 @@
-import Image from "next/image";
+'use client'
+import TiltedCard from "@/components/ui/TitledCard";
+import { useState, useEffect } from "react";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [page, setPage] = useState(1);
+  const [mangas, setMangas] = useState([]);
+  const [filteredMangas, setFilteredMangas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState(null);
+  const [totalResults, setTotalResults] = useState(0);
+  const [resultsLimited, setResultsLimited] = useState(false);
+  
+  const SEARCH_LIMIT = 100; // Maximum number of search results to display
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Fetch manga data
+  useEffect(() => {
+    async function fetchManga() {
+      try {
+        setLoading(true);
+        
+        let url = `/api/manga?page=${page}`;
+        if (isSearching && searchQuery.trim()) {
+          url = `/api/manga?query=${encodeURIComponent(searchQuery.trim())}&limit=${SEARCH_LIMIT}`;
+        }
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch manga data');
+        
+        const data = await response.json();
+        
+        if (isSearching && data.results) {
+          // Handle search results with metadata
+          setMangas(data.results);
+          setFilteredMangas(data.results);
+          setTotalResults(data.total);
+          setResultsLimited(data.limited);
+        } else {
+          // Handle standard paginated data
+          const processedData = Array.isArray(data[0]) ? data.flat() : data;
+          setMangas(processedData);
+          setFilteredMangas(processedData);
+          setTotalResults(processedData.length);
+          setResultsLimited(false);
+        }
+      } catch (error) {
+        console.error('Error fetching manga data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchManga();
+  }, [page, isSearching, searchQuery]);
+
+  // Handle search with debounce
+  const handleSearch = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    
+    // Clear any existing timeout
+    if (searchTimeout) clearTimeout(searchTimeout);
+    
+    // Set a new timeout to delay the search
+    if (query.trim()) {
+      const timeout = setTimeout(() => {
+        setIsSearching(true);
+      }, 500); // 500ms debounce
+      setSearchTimeout(timeout);
+    } else {
+      setIsSearching(false);
+    }
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery("");
+    setIsSearching(false);
+    setTotalResults(0);
+    setResultsLimited(false);
+  };
+
+  // Navigation functions
+  const handleNextPage = () => {
+    if (!isSearching) {
+      setPage(prev => prev + 1);
+    }
+  };
+  
+  const handlePrevPage = () => {
+    if (!isSearching) {
+      setPage(prev => Math.max(prev - 1, 1));
+    }
+  };
+
+  if (loading) return <div className="text-white text-center p-10">Loading manga data...</div>;
+
+  return (
+    <div className="px-4 py-8">
+      {/* Header with search bar */}
+      <div className="mb-10 flex flex-col items-center">
+        
+        {/* Search bar */}
+        <div className="relative w-full max-w-md">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={handleSearch}
+            placeholder="Search by title or genre..."
+            className="w-full pl-10 pr-10 py-2 rounded-full bg-gray-800 text-white border border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={clearSearch}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+            >
+              <span className="text-xl font-semibold">×</span>
+            </button>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        
+        {/* Search results count */}
+        {searchQuery && (
+          <div className="mt-2 text-gray-300 text-sm">
+            {resultsLimited 
+              ? `Showing top ${filteredMangas.length} of ${totalResults} mangas found`
+              : `Found ${totalResults} ${totalResults === 1 ? 'manga' : 'mangas'}`}
+          </div>
+        )}
+      </div>
+
+      {/* Manga grid */}
+      <div className="">
+        {filteredMangas.length === 0 ? (
+          <div className="text-white text-center py-10">
+            {isSearching 
+              ? `No mangas found matching "${searchQuery}"`
+              : "No mangas available for this page"}
+          </div>
+        ) : (
+          <div className="mx-4 md:mx-10 flex flex-wrap gap-[85px] justify-center">
+            {filteredMangas.map((manga, index) => (
+              <TiltedCard
+                key={index}
+                imageSrc={manga.cover_url}
+                altText={manga.title}
+                title={manga.title}
+                captionText={manga.title}
+                genres={manga.genres || []} 
+                containerHeight="600px"
+                containerWidth="300px"
+                imageHeight="500px"
+                imageWidth="300px"
+                rotateAmplitude={12}
+                scaleOnHover={1.2}
+                showMobileWarning={false}
+                showTooltip={true}
+                displayOverlayContent={true}
+                // overlayContent={
+                //   <p className="tilted-card-demo-text m-3">{manga.title}</p>
+                // }
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* Pagination controls (only shown when not searching) */}
+      {!isSearching && (
+        <div className="flex justify-center mt-8 mb-8 gap-4">
+          <button 
+            onClick={handlePrevPage} 
+            disabled={page === 1}
+            className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-400"
+          >
+            Previous Page
+          </button>
+          <span className="px-4 py-2 text-white">Page {page}</span>
+          <button 
+            onClick={handleNextPage}
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            Next Page
+          </button>
+        </div>
+      )}
+      
+      {/* Message when results are limited */}
+      {resultsLimited && (
+        <div className="text-center mt-4 text-gray-400 text-sm">
+          <p>Showing top {SEARCH_LIMIT} results. Try refining your search for more specific results.</p>
+        </div>
+      )}
     </div>
   );
 }
